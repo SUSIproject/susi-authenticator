@@ -1,211 +1,227 @@
-![Image of SUSI](http://webvariants.github.io/susi/resources/SUSI_Icon.svg)
-# SUSI, an Universal System Interface
+# Authenticator
+This component handles user management and prevents arbitrary users to access processors they shouldn't.
+It works by granting access-tokens, which users can include into their event-headers to reach processors with restricted access.
+To get this token, you need to publish an event with the topic "authenticator::login" and your credentials as payload. As response you will get an access token.
 
-SUSI is an application framework to build interfaces for arbitrary systems.
+The authenticator will setup "guard"-processors for all permissions which are setup and maintained by using the events "authenticator::permissions::(add|delete|get)". Now, if a user publishes an event, the guard-processor handles the event as the first and checks if an access-token is provided in the event-header, and if the token is associated with a user which has the required role to access the guarded processor. Then the event is simply passed back to the susi-core and the guarded processors will proceed processing the event.
 
-It intends to enable even novice programmers to build robust asyncronous applications on both ends of the system: front-end and back-end.
+If no previous configuration has been done, the following default config will be added:
+* user: "root"
+* password: "toor"
+* role: "admin"
+* permissions: "authenticator::(users|permissions)::(.\*)" needs role "admin"
 
-## Getting started
+## authenticator::login
+This event is used to obtain an access-token. You must specify your username and your password.
+As a response you get an access-token and a list of events that need the access-token. You should NOT send your access-token to other events, or they could be captured by another (evil) consumer. The events in this list are guarded by the authenticator. Therefore the authenticator takes care of removing the access-tokens, so they can not be observed by another consumer.
 
-### 1. Clone
-First, get all dependencies you will need to build every susi core component (I assume you are using a recent debian or some derived distribution):
+#### Request Structure
+```json
+{
+    "topic":"authenticator::login",
+    "payload": {
+        "username": "test",
+        "password": "test"
+    }
+}
 ```
-sudo apt-get install \
-    cmake make clang git \
-    libssl-dev \
-    libboost-all-dev \
-    libmosquitto-dev \
-    libmosquittopp-dev \
-    libleveldb-dev
-```
-If you want to use the susi-dev tool, you will also need a copy of debootstrap and jq:
-```
-sudo apt-get install debootstrap jq
-```
-
-Then, clone the repo and its submodules from [Github](https://github.com/webvariants/susi)
-```
-git clone --recursive https://github.com/webvariants/susi
-```
-
-### 2. Build
-SUSI's build process is *CMake* based. Therefore simply build with **cmake**.
-
-After building, install the libraries and binaries and run ldconfig to update your shared library cache.
-```
-cd $SUSI
-mkdir build
-cd build
-cmake ..
-make -j4
-sudo make install
-sudo ldconfig
+#### Response Structure
+```json
+{
+    "topic":"authenticator::login",
+    "payload": {
+        "token": "abcdefghijklmnopqrstuvwxyz",
+        "topics": ["guarded-topic-1","guarded-topic-2"]
+    }
+}
 ```
 
-### 3. Start the SUSI core server
-The main component of SUSI is its *core server* for handling the entire event dispatching and serves as a communication base for all other components.
+## authenticator::logout
+If you are logged in, you must logout at the end of your session, in order to cleanup things.
+Simply publish an event "authenticator::logout" with your access-token as header.
 
-You need to specify a valid TLS key / certificate pair to start the server.
-To create a self-signed certificate run the following command:
+#### Request Structure
+```json
+{
+    "topic":"authenticator::logout",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ]
+}
 ```
-openssl req -nodes -x509 -newkey rsa:2048 -keyout server_key.pem -out server_cert.pem -days 36500
+#### Response Structure
+```json
+{
+    "topic":"authenticator::logout",
+    "payload": true
+}
 ```
-Following, you can start the SUSI core server:
+
+## authenticator::users::add
+If you want to add a new user, publish an event with the topic "authenticator::users::add" and specify the user as shown below.
+
+#### Request Structure
+```json
+{
+    "topic":"authenticator::users::add",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ],
+    "payload": {
+        "username": "test",
+        "password": "test",
+        "roles": ["role1","role2"]
+    }
+}
 ```
-susi-core --key server_key.pem --cert server_cert.pem --port 4000
+#### Response Structure
+```json
+{
+    "topic":"authenticator::users::add",
+    "payload": true
+}
 ```
-Now the SUSI core server is accepting TLS-connection on port 4000
 
-#### Start one or more services
-Once your core server has been started, you can start other components that connect to it.
+## authenticator::users::delete
+If you want to delete a new user, publish an event with the topic "authenticator::users::delete" and specify the user by name.
 
-For our first example lets start with susi-duktape - our server side javascript interpreter.
+#### Request Structure
+```json
+{
+    "topic":"authenticator::users::delete",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ],
+    "payload": {
+        "username": "test",
+    }
+}
+```
+#### Response Structure
+```json
+{
+    "topic":"authenticator::users::delete",
+    "payload": true
+}
+```
 
-Create a Javascript source file, which looks like this:
-```javascript
-susi.registerProcessor('.*', function (evt) {
-	console.debug('in processor');
-	evt.payload = {};
-	susi.ack(evt);
-});
+## authenticator::users::get
+Get a list of all users and their roles.
 
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 1');
-	evt.payload.a = 'foo';
-	susi.ack(evt);
-});
-
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 2');
-	evt.payload.b = 'bar';
-	susi.dismiss(evt);
-});
-
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 3 (should never be called)');
-	evt.payload.c = 'baz';
-	susi.ack(evt);
-});
-
-susi.registerConsumer('foo', function (evt) {
-	console.log('consumer:', evt.payload);
-});
-
-susi.publish({ topic: 'foo' }, function (evt) {
-	console.log('finish:', evt.payload);
-});
+#### Request Structure
+```json
+{
+    "topic":"authenticator::users::get",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ]
+}
+```
+#### Response Structure
+```json
+{
+    "topic":"authenticator::users::get",
+    "payload": [
+        {
+            "username": "root",
+            "roles": ["admin"]
+        },{
+            "username": "test",
+            "roles": ["role1", "role2"]
+        }
+    ]
+}
 
 ```
-Place this file somewhere in your filesystem with the name *susi-sample.js*.
 
-You can use the same key/certificate pair you used to start the server, but you can create another pair:
+## authenticator::permissions::add
+If you want to add a new permission, publish an event with the topic "authenticator::permissions::add" and specify what to guard, and who can pass.
+To specify what, you must provide a pattern. This pattern is basically the json representation of an event with topic and payload. As usual you can specify the topic as regular expression which is then matched, but you can also specify parts of the payload, which must exist within the event in question. Strings in the pattern payload can also be regular expressions.
+
+As a result, you will get an id for this permission.
+
+As an example, the sample request will guard the events with the topics "guarded-topic-1", "guarded-topic-2" and "guarded-topic-3", but only if the payload contains the field "key" with one of the values "sample-value-a", "sample-value-b" or  "sample-value-c".
+
+With this approach you can for example disallow users from reading arbitrary values from one of the susi-states components (statefile or leveldb) without disallowing every use of this components.
+
+#### Request Structure
+```json
+{
+    "topic":"authenticator::permissions::add",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ],
+    "payload": {
+        "pattern": {
+            "topic": "guarded-topic-(1|2|3)",
+            "payload": {
+                "key": "sample-value-(a|b|c)"
+            }
+        },
+        "roles": ["role1","role2"]
+    }
+}
 ```
-openssl req -nodes -x509 -newkey rsa:2048 -keyout duktape_key.pem -out duktape_cert.pem -days 36500
+#### Response Structure
+```json
+{
+    "topic":"authenticator::permissions::add",
+    "payload": {
+        "id": "abcdefg123"
+    }
+}
 ```
-Now its time to start *susi-duktape*.
+
+## authenticator::permissions::delete
+If you want to delete a permission, publish an event with the topic "authenticator::permissions::delete" and specify the id of the permission.
+You get this id when you register the permission, or from the permission list obtained via "authenticator::permissions::get".
+
+#### Request Structure
+```json
+{
+    "topic":"authenticator::permissions::delete",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ],
+    "payload": {
+        "id": "abcdefg123",
+    }
+}
 ```
-susi-duktape --src susi-sample.js --addr localhost --port 4000 --key duktape_key.pem --cert duktape_cert.pem
-> started Susi::duktape engine and loaded source.js
-> 2015-08-25T09:35:31.934Z DBG susi-js: source.js:2: in processor
-> 2015-08-25T09:35:31.934Z DBG susi-js: source.js:8: in foo proc 1
-> 2015-08-25T09:35:31.934Z DBG susi-js: source.js:14: in foo proc 2
-> 2015-08-25T09:35:31.934Z INF susi-js: consumer: {a:"foo",b:"bar"}
-> 2015-08-25T09:35:31.935Z INF susi-js: finish: {a:"foo",b:"bar"}
+#### Response Structure
+```json
+{
+    "topic":"authenticator::permissions::delete",
+    "payload": true
+}
 ```
-If you see an output like this, everything's fine :)
-If you take a look at the supplied JS sources, you can see how SUSI works.
 
-### 4. Understand the code
-There are 5 essential actions you need to know about:
+## authenticator::permissions::get
+If you want to get a list of all permissions, use this event.
 
-* **registerProcessor()**
-	* This attaches an active event handler to a specific topic.
-	* All active event handlers run sequentially in the order of their declaration.
-* **registerConsumer()**
-	* This attaches a passive event handler to a specific topic
-	* All passive event handlers will run after all active event handlers have finished.
-* **publish()**
-	* This publishes an event.
-	* The event is firstly processed by all processors
-	* After all processors finished, the consumers for this topic are called
-* **ack()**
-	* This needs to be called when a processor finished.
-	* It tells susi, to continue with the event processing.
-* **dismiss()**
-	* This can also be called if a processor finished
-	* It tells SUSI to stop the event processing -> no active handlers will be called after this
-	* It will NOT stop passive handlers or the finish callback from being called
-
-As you see in the example, we register four processors:
-
-```javascript
-susi.registerProcessor('.*', function (evt) {
-	console.debug('in processor');
-	evt.payload = {};
-	susi.ack(evt);
-});
+#### Request Structure
+```json
+{
+    "topic":"authenticator::permissions::get",
+    "headers": [
+        {"User-Token":"abcdefghijklmnopqrstuvwxyz"}
+    ]
+}
 ```
-This is the first processor. It takes a string/regex to specify the event topic the processor is interested in,
-and a callback which is called. The first processor matches all events (topic: ".*") and ensures that the
-event payload is an empty object. Notice that we call ack() at the end, to tell SUSI that the event can be processed by other processors now.
-
-
-```javascript
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 1');
-	evt.payload.a = 'foo';
-	susi.ack(evt);
-});
+#### Response Structure
+```json
+{
+    "topic":"authenticator::permissions::get",
+    "payload": {
+        "abcdefg123": {
+            "pattern": {
+                "topic": "guarded-topic",
+                "payload": {
+                    "sample-key": "sample-value"
+                }
+            },
+            "roles": ["role1","role2"]
+        }
+    }
+}
 ```
-This is the second processor. It matches all events with the topic 'foo' and attaches the string 'foo' to the payload field 'a'. After this it acknowledges the event back to SUSI.
-
-```javascript
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 2');
-	evt.payload.b = 'bar';
-	susi.dismiss(evt);
-});
-```
-The third processor matches all events with the topic 'foo' as well.
-Notice that we call dismiss() at the end of the callback. This prevents all later declared processors to be called.
-
-```javascript
-susi.registerProcessor('foo', function (evt) {
-	console.debug('in foo proc 3 (should never be called)');
-	evt.payload.c = 'baz';
-	susi.ack(evt);
-});
-```
-This is the fourth processor. It will never be called due to the dismiss() statement in the third processor.
-
-```javascript
-susi.registerConsumer('foo', function (evt) {
-	console.log('consumer:', evt.payload);
-});
-```
-Here we declare a Consumer / passive event handler.
-It gets called after all processors, that are interested in this event, have finished.
-In the callback we simply log the event payload to stdout.
-
-```javascript
-susi.publish({ topic: 'foo' }, function (evt) {
-	console.log('finish:', evt.payload);
-});
-```
-Now, after the setup of all those processors and consumers, we can finally publish an event!
-publish() takes the event as first parameter. All events HAVE TO contain a topic field. Additionally they can have a payload field which can contain arbitrary data. As a second argument you can specify a finish callback. This is somewhat a one-time-consumer. It gets called after all processors for this event finished, but gets immediatly deleted afterwards.
-
-### 5. Learn More about SUSI
-* Documentation @ [susi.readme.io](http://susi.readme.io/).
-* [Libraries](https://github.com/webvariants/susi/blob/experimental/LIBRARIES.md)
-  * [Boost](https://github.com/boostorg/boost)
-  * [OpenSSL](https://github.com/openssl/openssl)
-
-### 6. Stay in contact
-* Homepage: http://susi.io
-* e-mail: tino[*dot*]rusch[*at*]webvariants[*dot*]de
-
-
-SUSI is released under the [MIT License](https://github.com/webvariants/susi/blob/experimental/LICENSE.md).
-
-*Many thanks to the whole SUSIProject Team and all [contributors](https://github.com/webvariants/susi/graphs/contributors) and especially to Anja Pydde for designing our great logo!*
