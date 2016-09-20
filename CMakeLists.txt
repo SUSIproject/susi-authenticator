@@ -14,11 +14,17 @@
 
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
-project(authenticator)
+project(susi-authenticator)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system program_options)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/submodules/libsusi)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/submodules/libsusi/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/submodules/libsusi/submodules/libbson/include)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/submodules/libbcrypt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/submodules/libbcrypt/include)
 
 include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/include )
 
