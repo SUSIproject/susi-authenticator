@@ -1,3 +1,14 @@
+/*
+ * Copyright (c) 2016, Tino Rusch
+ *
+ * This file is released under the terms of the MIT license. You can find the
+ * complete text in the attached LICENSE file or online at:
+ *
+ * http://www.opensource.org/licenses/mit-license.php
+ *
+ * @author: Tino Rusch (tino.rusch@webvariants.de)
+ */
+
 #include "susi/SusiClient.h"
 #include "bcrypt/BCrypt.hpp"
 #include <random>
@@ -5,58 +16,59 @@
 #include <fstream>
 
 namespace Susi {
-	class Authenticator {
-	public:
-		Authenticator(Susi::SusiClient & susi, BSON::Value & config);
-		void join();
+class Authenticator {
+public:
+  Authenticator(Susi::SusiClient &susi, BSON::Value &config);
+  void join();
 
-	protected:
-		void login(Susi::EventPtr event);
-		void logout(Susi::EventPtr event);
+protected:
+  void login(Susi::EventPtr event);
+  void logout(Susi::EventPtr event);
 
-		void addUser(Susi::EventPtr event);
-		void delUser(Susi::EventPtr event);
-		void getUsers(Susi::EventPtr event);
+  void addUser(Susi::EventPtr event);
+  void delUser(Susi::EventPtr event);
+  void getUsers(Susi::EventPtr event);
 
-		void addPermission(Susi::EventPtr event);
-		void delPermission(Susi::EventPtr event);
-		void getPermissions(Susi::EventPtr event);
+  void addPermission(Susi::EventPtr event);
+  void delPermission(Susi::EventPtr event);
+  void getPermissions(Susi::EventPtr event);
 
-		struct User {
-			std::string name;
-			std::string pwHash;
-			std::string token;
-			std::vector<std::string> roles;
-		};
+  struct User {
+    std::string name;
+    std::string pwHash;
+    std::string token;
+    std::vector<std::string> roles;
+  };
 
-		struct Permission {
-			std::string id;
-			Susi::Event pattern;
-			std::vector<std::string> roles;
-		};
+  struct Permission {
+    std::string id;
+    Susi::Event pattern;
+    std::vector<std::string> roles;
+  };
 
-		std::map<std::string,std::shared_ptr<User>> usersByName;
-		std::map<std::string,std::shared_ptr<User>> usersByToken;
-		std::map<std::string,std::map<std::string,Permission>> permissionsByTopic;
+  std::map<std::string, std::shared_ptr<User>> usersByName;
+  std::map<std::string, std::shared_ptr<User>> usersByToken;
+  std::map<std::string, std::map<std::string, Permission>> permissionsByTopic;
 
-		void addUser(std::shared_ptr<User> user);
-		void addPermission(Permission permission);
-		void loadFromFile();
-		void saveToFile();
+  void addUser(std::shared_ptr<User> user);
+  void addPermission(Permission permission);
+  void loadFromFile();
+  void saveToFile();
 
-		void setupDefaults();
+  void setupDefaults();
 
-		std::string generateToken();
-		std::string getTokenFromEvent(const Susi::EventPtr & event);
+  std::string generateToken();
+  std::string getTokenFromEvent(const Susi::EventPtr &event);
 
-		void registerGuard(Permission permission);
+  void registerGuard(Permission permission);
 
-		bool checkIfPayloadMatchesPattern(const BSON::Value & pattern, const BSON::Value & payload);
+  bool checkIfPayloadMatchesPattern(const BSON::Value &pattern,
+                                    const BSON::Value &payload);
 
-		BSON::Value permissionsToBSON();
-		bool BSONToPermissions(BSON::Value permissions);
+  BSON::Value permissionsToBSON();
+  bool BSONToPermissions(BSON::Value permissions);
 
-		Susi::SusiClient & susi_;
-		BSON::Value & config_;
-	};
+  Susi::SusiClient &susi_;
+  BSON::Value &config_;
+};
 }
