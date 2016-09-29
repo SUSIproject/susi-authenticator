@@ -9,12 +9,17 @@ before_install:
 script:
   - docker run -v $(pwd):/src trusch/susi-builder:stable
   - cp build/*.deb ./susi-authenticator-${TRAVIS_BRANCH}-linux-amd64.deb
+  - docker run -v $(pwd):/opt/rootfs/src trusch/susi-arm-builder:stable
+  - cp build/*.deb ./susi-authenticator-${TRAVIS_BRANCH}-linux-armhf.deb
 
 deploy:
   provider: releases
   skip_cleanup: true
   on:
     tags: true
-  file: "susi-authenticator-${TRAVIS_BRANCH}-linux-amd64.deb"
+  file:
+    - "susi-authenticator-${TRAVIS_BRANCH}-linux-amd64.deb"
+    - "susi-authenticator-${TRAVIS_BRANCH}-linux-armhf.deb"
+
   api_key:
     secure: n+Wnh8UZqaLjCPsmkWu/5tVlr+ZYwEKjEFwE3S9P0KwMwBfofY4lZb+JhBQMGoZS8oDmZ1dTZjjobCmGT0EMHpKNCO51SQCNBySMShKEj3P52rPE4TKLqIzHe5gqdPL6W5yP1k+QTSjAZtaPOZsT4QFZfNbWJUrjS8jOeGL4SxwBapkZuyqVNSuZ0IA95iugQl6dsdo9NNl/I1B2v6YRwGS9PHJuQy1FbONtC+YecSqrz5S6omp7Mi5l1VX76L4nTMKEpfVIbfAEIF2rKpmmAaHCqA+FooH1q/exzHhyxZdjZ7l+vRbeLwFvCqJI8bMaNfbKmxbZKG/2y3kAAbtcaTWZu+uBPi2BxF2Oin8Wo7q8w6jSsRgNR/VD47z3I9e+Vki9JF0dh7dOAvZS4F8K+suuaaflxkV1Noushps3soVBu0P4tLriSLrub7Pl5gRNJC3xhEnPAsd2tVDM8N04+0LXL9LExcUmNS5OVZ4KbQqIP6kSqp8e+5W64LMxcZzXgu3JTyj8hq5TpBWxmj1qezlQutlcGy2COdFol6tqjfgM7dD7421YjtjNvaBC9v+MztWXYLHnE/MBpgxCUZSjJKET5gwsJAJro5jhUSkwFdCMWi/A7//slVMtG0n/tb7uxSqRfWRWRZmG/V8745997cF2zy/OpmLJJrzf1Lm5xCA=
